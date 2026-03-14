@@ -1,94 +1,225 @@
-import { FileSpreadsheet, CheckCircle2, AlertTriangle } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FileSpreadsheet, CheckCircle2, AlertTriangle, Download, Table2, Info } from "lucide-react";
 import { motion } from "framer-motion";
+
+const VALID_ROLES = [
+  { value: "student", label: "student", color: "bg-blue-100 text-blue-800 border-blue-200" },
+  { value: "teacher", label: "teacher", color: "bg-amber-100 text-amber-800 border-amber-200" },
+  { value: "non_teaching_staff", label: "non_teaching_staff", color: "bg-rose-100 text-rose-800 border-rose-200" },
+];
+
+const VALID_GROUPS = [
+  { value: "junior_mag", label: "junior_mag", note: "Junior Mag students" },
+  { value: "senior_mag", label: "senior_mag", note: "Senior Mag students" },
+  { value: "grade_9", label: "grade_9", note: "Grade 9" },
+  { value: "grade_10", label: "grade_10", note: "Grade 10" },
+  { value: "grade_11", label: "grade_11", note: "Grade 11 (counted as senior)" },
+  { value: "grade_12", label: "grade_12", note: "Grade 12 (counted as senior)" },
+];
+
+const SAMPLE_ROWS = [
+  { name: "Amit Sharma", role: "student", group: "grade_11", note: "Student in Grade 11" },
+  { name: "Priya Verma", role: "student", group: "junior_mag", note: "Junior Mag student" },
+  { name: "Mr. Rajesh Kumar", role: "teacher", group: "", note: "Teacher — leave column C blank" },
+  { name: "Ms. Sunita Iyer", role: "non_teaching_staff", group: "", note: "Staff — leave column C blank" },
+  { name: "Rohan Mehta", role: "student", group: "senior_mag", note: "Senior Mag student" },
+  { name: "Ananya Nair", role: "student", group: "grade_9", note: "Grade 9 student" },
+];
+
+function downloadSampleExcel() {
+  // Create a CSV blob with BOM for Excel compatibility
+  const bom = "\uFEFF";
+  const header = "Name,Role,StudentGroup\n";
+  const rows = SAMPLE_ROWS.map(r => `${r.name},${r.role},${r.group}`).join("\n");
+  const csv = bom + header + rows;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "pathashaala_sample_people.csv";
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function ExcelGuide() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl space-y-8">
-      
+
+      {/* Header */}
       <div>
         <h1 className="text-3xl font-display font-bold text-foreground">Excel Import Guide</h1>
-        <p className="text-muted-foreground mt-1">Learn how to format your data for seamless bulk uploads.</p>
+        <p className="text-muted-foreground mt-1">Everything you need to know to bulk-upload your people list from a spreadsheet.</p>
       </div>
 
-      <div className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 rounded-xl bg-green-100 text-green-700">
-            <FileSpreadsheet className="w-6 h-6" />
+      {/* Quick steps */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { step: "1", title: "Open Excel / Google Sheets", desc: "Create a new spreadsheet or use the sample file below." },
+          { step: "2", title: "Fill in 3 Columns", desc: "Name in column A, Role in column B, Student Group in column C." },
+          { step: "3", title: "Upload the File", desc: 'Go to People → "Bulk Upload" → select your file → Import.' },
+        ].map(item => (
+          <div key={item.step} className="bg-card border border-border rounded-2xl p-5 flex gap-4 items-start shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">
+              {item.step}
+            </div>
+            <div>
+              <p className="font-semibold text-foreground text-sm">{item.title}</p>
+              <p className="text-xs text-muted-foreground mt-1">{item.desc}</p>
+            </div>
           </div>
-          <h2 className="text-xl font-display font-bold">Expected Format</h2>
+        ))}
+      </div>
+
+      {/* Sample download */}
+      <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-primary/15 text-primary">
+            <FileSpreadsheet className="w-7 h-7" />
+          </div>
+          <div>
+            <p className="font-semibold text-foreground">Download Sample File</p>
+            <p className="text-sm text-muted-foreground">A ready-to-use CSV with example rows for all 3 types of people.</p>
+          </div>
+        </div>
+        <button
+          onClick={downloadSampleExcel}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm shrink-0"
+        >
+          <Download className="w-4 h-4" />
+          Download Sample
+        </button>
+      </div>
+
+      {/* Visual table preview */}
+      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-muted/30">
+          <Table2 className="w-5 h-5 text-primary" />
+          <h2 className="font-display font-bold text-lg">What Your Spreadsheet Should Look Like</h2>
         </div>
 
-        <p className="text-foreground leading-relaxed mb-6">
-          The system expects a standard Excel file (.xlsx or .csv) with 3 columns. A header row is optional, but if the first row contains the word "Name", it will be skipped automatically.
-        </p>
+        <div className="p-6">
+          <p className="text-sm text-muted-foreground mb-4">
+            Optional: You may include a header row. If your first row contains the word "Name" the system will skip it automatically.
+          </p>
 
-        <div className="border border-border rounded-2xl overflow-hidden mb-8 shadow-inner bg-background">
-          <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead className="font-bold text-foreground">Column A: Name</TableHead>
-                <TableHead className="font-bold text-foreground">Column B: Role</TableHead>
-                <TableHead className="font-bold text-foreground">Column C: Student Group</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell className="font-medium">John Doe</TableCell>
-                <TableCell><span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-semibold">student</span></TableCell>
-                <TableCell><span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-xs font-semibold">senior_mag</span></TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Jane Smith</TableCell>
-                <TableCell><span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-semibold">teacher</span></TableCell>
-                <TableCell className="text-muted-foreground italic">Leave blank</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Bob Wilson</TableCell>
-                <TableCell><span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-xs font-semibold">non_teaching_staff</span></TableCell>
-                <TableCell className="text-muted-foreground italic">Leave blank</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
+          <div className="border border-border rounded-xl overflow-hidden">
+            {/* Spreadsheet-style header */}
+            <div className="grid grid-cols-[2rem_1fr_1fr_1fr] text-xs font-bold text-center border-b border-border bg-muted/50">
+              <div className="p-2 border-r border-border text-muted-foreground">#</div>
+              <div className="p-2 border-r border-border text-muted-foreground uppercase tracking-wide">A — Name</div>
+              <div className="p-2 border-r border-border text-muted-foreground uppercase tracking-wide">B — Role</div>
+              <div className="p-2 text-muted-foreground uppercase tracking-wide">C — StudentGroup</div>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-muted/30 p-5 rounded-2xl border border-border">
-            <h3 className="font-semibold flex items-center gap-2 mb-3">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
-              Valid Values
-            </h3>
-            <ul className="space-y-4 text-sm">
-              <li>
-                <span className="font-bold block mb-1">Roles:</span>
-                <code className="bg-white border border-border px-1.5 py-0.5 rounded">student</code>, 
-                <code className="bg-white border border-border px-1.5 py-0.5 rounded ml-1">teacher</code>, 
-                <code className="bg-white border border-border px-1.5 py-0.5 rounded ml-1">non_teaching_staff</code>
-                <p className="text-muted-foreground text-xs mt-1">(The system is smart enough to handle "Teacher" or "Staff")</p>
-              </li>
-              <li>
-                <span className="font-bold block mb-1">Student Groups:</span>
-                <code className="bg-white border border-border px-1.5 py-0.5 rounded">junior_mag</code>, 
-                <code className="bg-white border border-border px-1.5 py-0.5 rounded ml-1">senior_mag</code>, 
-                <code className="bg-white border border-border px-1.5 py-0.5 rounded ml-1">grade_9</code> through <code className="bg-white border border-border px-1.5 py-0.5 rounded">grade_12</code>
-              </li>
-            </ul>
-          </div>
+            {/* Optional header row */}
+            <div className="grid grid-cols-[2rem_1fr_1fr_1fr] text-sm border-b border-border/50 bg-blue-50/50">
+              <div className="p-2.5 border-r border-border/50 text-center text-xs text-muted-foreground font-mono">1</div>
+              <div className="p-2.5 border-r border-border/50 text-muted-foreground italic text-xs">Name (optional header)</div>
+              <div className="p-2.5 border-r border-border/50 text-muted-foreground italic text-xs">Role</div>
+              <div className="p-2.5 text-muted-foreground italic text-xs">StudentGroup</div>
+            </div>
 
-          <div className="bg-rose-50/50 p-5 rounded-2xl border border-rose-100">
-            <h3 className="font-semibold flex items-center gap-2 mb-3 text-rose-900">
-              <AlertTriangle className="w-5 h-5 text-rose-600" />
-              Important Rules
-            </h3>
-            <ul className="space-y-3 text-sm text-rose-800/80">
-              <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 flex-shrink-0" /> Names must be absolutely unique across all lists.</li>
-              <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 flex-shrink-0" /> Empty rows will be ignored automatically.</li>
-              <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 flex-shrink-0" /> Only students need a Student Group assigned.</li>
-              <li className="flex gap-2"><div className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 flex-shrink-0" /> Do not include hidden columns before Name.</li>
-            </ul>
+            {/* Data rows */}
+            {SAMPLE_ROWS.map((row, i) => (
+              <div key={i} className={`grid grid-cols-[2rem_1fr_1fr_1fr] text-sm border-b border-border/30 ${i % 2 === 0 ? '' : 'bg-muted/10'}`}>
+                <div className="p-2.5 border-r border-border/30 text-center text-xs text-muted-foreground font-mono">{i + 2}</div>
+                <div className="p-2.5 border-r border-border/30 font-medium text-foreground">{row.name}</div>
+                <div className="p-2.5 border-r border-border/30">
+                  {row.role === "student" && <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">student</span>}
+                  {row.role === "teacher" && <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">teacher</span>}
+                  {row.role === "non_teaching_staff" && <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">non_teaching_staff</span>}
+                </div>
+                <div className="p-2.5">
+                  {row.group ? (
+                    <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">{row.group}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">leave blank</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
+
+      {/* Valid values reference */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Roles */}
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          <h3 className="font-semibold flex items-center gap-2 mb-4 text-foreground">
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+            Valid Role Values (Column B)
+          </h3>
+          <div className="space-y-2">
+            {VALID_ROLES.map(r => (
+              <div key={r.value} className="flex items-center gap-3">
+                <code className={`px-2 py-1 rounded text-xs font-bold border ${r.color}`}>{r.label}</code>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 p-3 bg-muted/30 rounded-xl border border-border">
+            <p className="text-xs text-muted-foreground">
+              <strong>Smart matching:</strong> The system also understands "Teacher", "Staff", "Non Teaching Staff" etc. — it's not case-sensitive.
+            </p>
+          </div>
+        </div>
+
+        {/* Student groups */}
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          <h3 className="font-semibold flex items-center gap-2 mb-4 text-foreground">
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+            Valid Student Group Values (Column C)
+          </h3>
+          <div className="space-y-2">
+            {VALID_GROUPS.map(g => (
+              <div key={g.value} className="flex items-center gap-3">
+                <code className="px-2 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 w-28 shrink-0">{g.label}</code>
+                <span className="text-xs text-muted-foreground">{g.note}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3 p-3 bg-muted/30 rounded-xl border border-border">
+            Only needed for students. Leave blank for teachers and staff.
+          </p>
+        </div>
+      </div>
+
+      {/* Rules and warnings */}
+      <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+        <h3 className="font-semibold flex items-center gap-2 mb-3 text-amber-900">
+          <AlertTriangle className="w-5 h-5 text-amber-600" />
+          Important Rules to Follow
+        </h3>
+        <ul className="space-y-2 text-sm text-amber-800">
+          {[
+            "Names must be unique — no two people can share the same name.",
+            "Names added via Excel cannot duplicate names already in the system.",
+            "Empty or blank rows are automatically skipped.",
+            "Column A (Name) must not be empty — rows without a name are ignored.",
+            "Only students need a StudentGroup — leave column C blank for teachers and staff.",
+            "File format: .xlsx (Excel), .xls, or .csv are all accepted.",
+            "Do not add extra columns before column A or the system will misread the data.",
+          ].map((rule, i) => (
+            <li key={i} className="flex gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+              {rule}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Info box */}
+      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+        <div className="flex gap-3">
+          <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-blue-900">
+            <p className="font-semibold mb-1">After uploading, you can still add more people</p>
+            <p className="text-blue-800/80">You can mix bulk upload and manual entry. Use bulk upload for large lists (like all 120 students) and add teachers or staff one by one manually if preferred.</p>
+          </div>
+        </div>
+      </div>
+
     </motion.div>
   );
 }

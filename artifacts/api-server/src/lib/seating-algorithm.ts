@@ -7,7 +7,7 @@ export interface PersonData {
 
 export interface GroupData {
   id: number;
-  friendshipLevel: number;
+  friendshipLevel: number; // 0-100, 100 = hard block (never sit together)
   memberIds: number[];
 }
 
@@ -29,12 +29,16 @@ export interface WeekResult {
 
 const SENIOR_GROUPS = new Set(["senior_mag", "grade_11", "grade_12"]);
 
-function isSenior(person: PersonData): boolean {
-  return !!person.studentGroup && SENIOR_GROUPS.has(person.studentGroup);
+function isSenior(p: PersonData): boolean {
+  return !!p.studentGroup && SENIOR_GROUPS.has(p.studentGroup);
 }
 
-function isAuthority(person: PersonData): boolean {
-  return person.role === "teacher" || person.role === "non_teaching_staff";
+function isAuthority(p: PersonData): boolean {
+  return p.role === "teacher" || p.role === "non_teaching_staff";
+}
+
+function countTeachers(seats: PersonData[]): number {
+  return seats.filter(s => s.role === "teacher").length;
 }
 
 function shuffle<T>(arr: T[], rng: () => number): T[] {
@@ -47,38 +51,84 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
 }
 
 function seededRandom(seed: number): () => number {
-  let s = seed;
+  let s = seed >>> 0;
   return () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    return (s >>> 0) / 0xffffffff;
+    s = Math.imul(s ^ (s >>> 16), 0x45d9f3b);
+    s = Math.imul(s ^ (s >>> 16), 0x45d9f3b);
+    s ^= s >>> 16;
+    return (s >>> 0) / 4294967296;
   };
 }
 
-function computeFriendshipPenalty(seats: PersonData[], newPerson: PersonData, groups: GroupData[]): number {
-  let penalty = 0;
+/**
+ * Returns Infinity if placing `person` at `table` violates a 100% rule.
+ * Returns a weighted penalty for partial friendship levels.
+ */
+function friendshipPenalty(
+  tableSeats: PersonData[],
+  person: PersonData,
+  groups: GroupData[]
+): number {
+  let totalPenalty = 0;
   for (const group of groups) {
-    const level = group.friendshipLevel;
-    if (level === 0) continue;
-    const inGroup = group.memberIds.includes(newPerson.id);
-    if (!inGroup) continue;
-    const existingInGroup = seats.filter(s => group.memberIds.includes(s.id));
-    if (existingInGroup.length > 0) {
-      penalty += level;
+    if (group.friendshipLevel <= 0) continue;
+    if (!group.memberIds.includes(person.id)) continue;
+
+    const friendsAlreadyThere = tableSeats.filter(s => group.memberIds.includes(s.id));
+    if (friendsAlreadyThere.length === 0) continue;
+
+    // 100% = hard block (absolute rule - they must NEVER sit together)
+    if (group.friendshipLevel === 100) return Infinity;
+
+    // Partial levels: quadratic scaling to strongly prefer separation
+    // At 50% → penalty 2500; at 75% → penalty 5625; at 99% → penalty 9801
+    totalPenalty += group.friendshipLevel * group.friendshipLevel;
+  }
+  return totalPenalty;
+}
+
+/**
+ * Find the best table index for a person given:
+ * - Tables that still have room (fewer than seatsPerTable seats)
+ * - Teacher cap (if person is a teacher)
+ * - Friendship constraints (100% = Infinity = skip that table)
+ * - Small random noise to ensure variety
+ */
+function bestTableFor(
+  person: PersonData,
+  tables: PersonData[][],
+  groups: GroupData[],
+  config: SeatingConfig,
+  rng: () => number,
+  allowedTableIndices?: Set<number>
+): number {
+  const { seatsPerTable, maxTeachersPerTable } = config;
+
+  let bestIdx = -1;
+  let bestScore = Infinity;
+
+  for (let i = 0; i < tables.length; i++) {
+    if (allowedTableIndices && !allowedTableIndices.has(i)) continue;
+
+    const table = tables[i];
+    if (table.length >= seatsPerTable) continue;
+
+    // Teacher cap
+    if (person.role === "teacher" && countTeachers(table) >= maxTeachersPerTable) continue;
+
+    const penalty = friendshipPenalty(table, person, groups);
+    if (penalty === Infinity) continue; // hard block
+
+    // Add small randomness to avoid deterministic clumping
+    const score = penalty + rng() * 10;
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestIdx = i;
     }
   }
-  return penalty;
-}
 
-function tableHasAuthority(seats: PersonData[]): boolean {
-  return seats.some(isAuthority);
-}
-
-function tableHasSeniorOrAuthority(seats: PersonData[]): boolean {
-  return seats.some(s => isAuthority(s) || isSenior(s));
-}
-
-function countTeachers(seats: PersonData[]): number {
-  return seats.filter(s => s.role === "teacher").length;
+  return bestIdx;
 }
 
 export function generateWeek(
@@ -87,90 +137,141 @@ export function generateWeek(
   config: SeatingConfig,
   weekIndex: number
 ): WeekResult {
-  const { tableCount, seatsPerTable, maxTeachersPerTable } = config;
-  const rng = seededRandom(weekIndex * 999983 + 137);
-
-  const shuffled = shuffle(people, rng);
+  const { tableCount, seatsPerTable } = config;
+  const rng = seededRandom(weekIndex * 2654435761 + 1013904223);
 
   const tables: PersonData[][] = Array.from({ length: tableCount }, () => []);
 
-  const authorities = shuffled.filter(isAuthority);
-  const nonAuthorities = shuffled.filter(p => !isAuthority(p));
+  // Shuffle everyone, but sort by constraint strength (most constrained first)
+  const shuffled = shuffle(people, rng);
 
-  let authIdx = 0;
-  for (let t = 0; t < tableCount && authIdx < authorities.length; t++) {
-    tables[t].push(authorities[authIdx++]);
+  // Count how many 100% hard-block groups a person is in (more = harder to place)
+  function constraintScore(p: PersonData): number {
+    return groups.filter(g => g.friendshipLevel === 100 && g.memberIds.includes(p.id)).length;
   }
-  while (authIdx < authorities.length) {
-    const tableIdx = Math.floor(rng() * tableCount);
-    const table = tables[tableIdx];
-    const teacherCount = countTeachers(table);
-    const person = authorities[authIdx];
-    if (person.role === "teacher" && teacherCount >= maxTeachersPerTable) {
-      authIdx++;
-      continue;
-    }
-    if (table.length < seatsPerTable) {
-      table.push(person);
-      authIdx++;
+
+  // Place authorities first (teachers + non-teaching staff), one per table if possible
+  const authorities = shuffle(shuffled.filter(isAuthority), rng)
+    .sort((a, b) => constraintScore(b) - constraintScore(a));
+
+  const students = shuffle(shuffled.filter(p => !isAuthority(p)), rng)
+    .sort((a, b) => constraintScore(b) - constraintScore(a));
+
+  // Phase 1: Distribute one authority per table (guarantee coverage)
+  const unplacedAuthorities: PersonData[] = [];
+  const authorityQueue = [...authorities];
+
+  // First pass: one authority per table
+  for (let t = 0; t < tableCount && authorityQueue.length > 0; t++) {
+    const person = authorityQueue[0];
+    const penalty = friendshipPenalty(tables[t], person, groups);
+    if (penalty === Infinity) {
+      // Can't place here due to hard block - try to find another table
+      let placed = false;
+      for (let t2 = 0; t2 < tableCount; t2++) {
+        if (tables[t2].length === 0) {
+          // Empty table - safe to put anyone here (no conflicts possible)
+          tables[t2].push(person);
+          authorityQueue.shift();
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        // Just put at first available table with room - constraints can't be fully satisfied
+        const idx = bestTableFor(person, tables, groups, config, rng);
+        if (idx >= 0) {
+          tables[idx].push(person);
+        }
+        authorityQueue.shift();
+      }
     } else {
-      authIdx++;
+      tables[t].push(person);
+      authorityQueue.shift();
     }
   }
 
-  const shuffledNonAuth = shuffle(nonAuthorities, rng);
-  for (const person of shuffledNonAuth) {
-    let bestTable = -1;
-    let bestScore = Infinity;
-
-    const tablesWithRoom = tables
-      .map((t, i) => ({ t, i }))
-      .filter(({ t }) => t.length < seatsPerTable);
-
-    if (tablesWithRoom.length === 0) break;
-
-    for (const { t, i } of tablesWithRoom) {
-      const penalty = computeFriendshipPenalty(t, person, groups);
-      const hasRoom = t.length < seatsPerTable;
-      if (!hasRoom) continue;
-
-      let score = penalty * 10;
-      score += rng() * 5;
-
-      if (score < bestScore) {
-        bestScore = score;
-        bestTable = i;
+  // Remaining authorities (more than tableCount authorities)
+  for (const person of authorityQueue) {
+    const idx = bestTableFor(person, tables, groups, config, rng);
+    if (idx >= 0) {
+      tables[idx].push(person);
+    } else {
+      // Forced placement - find any table with room, even violating partial constraints
+      for (let t = 0; t < tableCount; t++) {
+        if (tables[t].length < seatsPerTable) {
+          if (person.role !== "teacher" || countTeachers(tables[t]) < config.maxTeachersPerTable) {
+            tables[t].push(person);
+            break;
+          }
+        }
       }
     }
+  }
 
-    if (bestTable >= 0) {
-      tables[bestTable].push(person);
+  // Phase 2: Place students
+  for (const person of students) {
+    const idx = bestTableFor(person, tables, groups, config, rng);
+    if (idx >= 0) {
+      tables[idx].push(person);
+    } else {
+      // Forced placement - try to respect partial constraints but must place
+      let bestFallback = -1;
+      let bestFallbackScore = Infinity;
+      for (let t = 0; t < tableCount; t++) {
+        if (tables[t].length >= seatsPerTable) continue;
+        const pen = friendshipPenalty(tables[t], person, groups);
+        // Even Infinity tables are acceptable as last resort
+        const score = (pen === Infinity ? 9999999 : pen) + rng() * 10;
+        if (score < bestFallbackScore) {
+          bestFallbackScore = score;
+          bestFallback = t;
+        }
+      }
+      if (bestFallback >= 0) {
+        tables[bestFallback].push(person);
+      }
     }
   }
 
+  // Phase 3: Fix tables that have no authority AND no senior student
+  // Try to swap a junior student out for a senior from another table
   for (let t = 0; t < tableCount; t++) {
     const table = tables[t];
     if (table.length === 0) continue;
+    if (table.some(p => isAuthority(p) || isSenior(p))) continue;
 
-    if (!tableHasSeniorOrAuthority(table)) {
-      const tablePeople = [...table];
-      const seniors = shuffledNonAuth.filter(
-        p => isSenior(p) && !tablePeople.some(tp => tp.id === p.id)
+    // Find a senior student in any other table that we could swap in
+    for (let t2 = 0; t2 < tableCount; t2++) {
+      if (t2 === t) continue;
+      const otherTable = tables[t2];
+      const seniorIdx = otherTable.findIndex(p => isSenior(p));
+      if (seniorIdx < 0) continue;
+
+      const senior = otherTable[seniorIdx];
+
+      // Find a junior from table t to swap out
+      const juniorIdx = table.findIndex(p => !isSenior(p) && !isAuthority(p));
+      if (juniorIdx < 0) break;
+
+      const junior = table[juniorIdx];
+
+      // Verify swap doesn't violate 100% hard blocks
+      const seniorInT = friendshipPenalty(
+        table.filter((_, i) => i !== juniorIdx),
+        senior,
+        groups
       );
-      if (seniors.length > 0) {
-        const victim = tablePeople.find(p => !isSenior(p) && !isAuthority(p));
-        if (victim) {
-          const swapWith = seniors[0];
-          const otherTable = tables.findIndex(ot =>
-            ot !== table &&
-            ot.some(p => p.id === swapWith.id)
-          );
-          if (otherTable >= 0 && tables[otherTable].length > 1) {
-            const swapIdx = tables[otherTable].findIndex(p => p.id === swapWith.id);
-            const victimIdx = table.findIndex(p => p.id === victim.id);
-            [table[victimIdx], tables[otherTable][swapIdx]] = [tables[otherTable][swapIdx], table[victimIdx]];
-          }
-        }
+      const juniorInT2 = friendshipPenalty(
+        otherTable.filter((_, i) => i !== seniorIdx),
+        junior,
+        groups
+      );
+
+      if (seniorInT !== Infinity && juniorInT2 !== Infinity) {
+        table[juniorIdx] = senior;
+        otherTable[seniorIdx] = junior;
+        break;
       }
     }
   }
@@ -191,9 +292,5 @@ export function generateAllWeeks(
   groups: GroupData[],
   config: SeatingConfig
 ): WeekResult[] {
-  const weeks: WeekResult[] = [];
-  for (let w = 0; w < 10; w++) {
-    weeks.push(generateWeek(people, groups, config, w));
-  }
-  return weeks;
+  return Array.from({ length: 10 }, (_, w) => generateWeek(people, groups, config, w));
 }
