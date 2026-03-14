@@ -1,0 +1,17 @@
+packages:
+  "xlsx": "Parsing Excel files in the browser for bulk upload"
+  "framer-motion": "Page transitions and smooth interactions"
+  "@hookform/resolvers": "Zod validation for react-hook-form"
+  "react-hook-form": "Form state management"
+  "zod": "Schema validation"
+  "clsx": "Utility for constructing className strings"
+  "tailwind-merge": "Utility for merging tailwind classes"
+
+images:
+  - path: "artifacts/pathashaala/public/images/auth-bg.png"
+    description: "A soft, warm, out-of-focus background with abstract geometric shapes inspired by modern architecture and academia, in shades of deep navy blue, soft cream, and muted teal, giving a premium and professional feel."
+    aspect_ratio: "16:9"
+
+notes:
+  - Expects Shadcn UI components to be available in src/components/ui/
+  - API hooks are imported from @workspace/api-client-react

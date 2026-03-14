@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Pathashaala Dining Seat Arrangement API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: people
+    description: People management (students, teachers, non-teaching staff)
+  - name: config
+    description: Table configuration
+  - name: groups
+    description: Friendship groups
+  - name: arrangements
+    description: Seating arrangements
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,250 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /people:
+    get:
+      operationId: listPeople
+      tags: [people]
+      summary: List all people
+      responses:
+        "200":
+          description: List of people
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeopleListResponse"
+    post:
+      operationId: createPerson
+      tags: [people]
+      summary: Add a person
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePersonRequest"
+      responses:
+        "201":
+          description: Person created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /people/bulk:
+    post:
+      operationId: bulkCreatePeople
+      tags: [people]
+      summary: Bulk add people from parsed Excel data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkCreatePeopleRequest"
+      responses:
+        "200":
+          description: Bulk import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkCreatePeopleResponse"
+
+  /people/{id}:
+    delete:
+      operationId: deletePerson
+      tags: [people]
+      summary: Remove a person
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Person deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /config:
+    get:
+      operationId: getConfig
+      tags: [config]
+      summary: Get table configuration
+      responses:
+        "200":
+          description: Current configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Config"
+    put:
+      operationId: updateConfig
+      tags: [config]
+      summary: Update table configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateConfigRequest"
+      responses:
+        "200":
+          description: Updated configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Config"
+
+  /groups:
+    get:
+      operationId: listGroups
+      tags: [groups]
+      summary: List all friendship groups
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupsListResponse"
+    post:
+      operationId: createGroup
+      tags: [groups]
+      summary: Create a friendship group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupRequest"
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /groups/{id}:
+    put:
+      operationId: updateGroup
+      tags: [groups]
+      summary: Update a friendship group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGroupRequest"
+      responses:
+        "200":
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteGroup
+      tags: [groups]
+      summary: Delete a friendship group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Group deleted
+
+  /arrangements/generate:
+    post:
+      operationId: generateArrangements
+      tags: [arrangements]
+      summary: Generate 10 weekly seating arrangements and return Excel file URLs
+      responses:
+        "200":
+          description: Generated arrangements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateArrangementsResponse"
+        "400":
+          description: Cannot generate arrangements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /arrangements/download/{weekIndex}:
+    get:
+      operationId: downloadArrangement
+      tags: [arrangements]
+      summary: Download a specific week's Excel arrangement
+      parameters:
+        - name: weekIndex
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Arrangement not found
+
+  /arrangements/download-all:
+    get:
+      operationId: downloadAllArrangements
+      tags: [arrangements]
+      summary: Download all 10 weekly arrangements as a zip
+      responses:
+        "200":
+          description: Zip of all Excel files
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +284,234 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+    PersonRole:
+      type: string
+      enum: [student, teacher, non_teaching_staff]
+
+    StudentGroup:
+      type: string
+      enum: [junior_mag, senior_mag, grade_9, grade_10, grade_11, grade_12]
+
+    Person:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/PersonRole"
+        studentGroup:
+          $ref: "#/components/schemas/StudentGroup"
+          nullable: true
+      required:
+        - id
+        - name
+        - role
+
+    PeopleListResponse:
+      type: object
+      properties:
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
+      required:
+        - people
+
+    CreatePersonRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/PersonRole"
+        studentGroup:
+          $ref: "#/components/schemas/StudentGroup"
+          nullable: true
+      required:
+        - name
+        - role
+
+    BulkCreatePeopleRequest:
+      type: object
+      properties:
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreatePersonRequest"
+      required:
+        - people
+
+    BulkCreatePeopleResponse:
+      type: object
+      properties:
+        created:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - created
+        - skipped
+        - errors
+
+    Config:
+      type: object
+      properties:
+        tableCount:
+          type: integer
+          minimum: 1
+        maxTeachersPerTable:
+          type: integer
+          minimum: 1
+        seatsPerTable:
+          type: integer
+          minimum: 2
+      required:
+        - tableCount
+        - maxTeachersPerTable
+        - seatsPerTable
+
+    UpdateConfigRequest:
+      type: object
+      properties:
+        tableCount:
+          type: integer
+          minimum: 1
+        maxTeachersPerTable:
+          type: integer
+          minimum: 1
+        seatsPerTable:
+          type: integer
+          minimum: 2
+
+    GroupMember:
+      type: object
+      properties:
+        personId:
+          type: integer
+        personName:
+          type: string
+      required:
+        - personId
+        - personName
+
+    Group:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        friendshipLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 0 = don't care, 100 = should never be together
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupMember"
+      required:
+        - id
+        - name
+        - friendshipLevel
+        - members
+
+    GroupsListResponse:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Group"
+      required:
+        - groups
+
+    CreateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        friendshipLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+        memberPersonIds:
+          type: array
+          items:
+            type: integer
+          minItems: 2
+      required:
+        - name
+        - friendshipLevel
+        - memberPersonIds
+
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        friendshipLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+        memberPersonIds:
+          type: array
+          items:
+            type: integer
+          minItems: 2
+
+    TableArrangement:
+      type: object
+      properties:
+        tableNumber:
+          type: integer
+        seats:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
+      required:
+        - tableNumber
+        - seats
+
+    WeekArrangement:
+      type: object
+      properties:
+        weekNumber:
+          type: integer
+        tables:
+          type: array
+          items:
+            $ref: "#/components/schemas/TableArrangement"
+      required:
+        - weekNumber
+        - tables
+
+    GenerateArrangementsResponse:
+      type: object
+      properties:
+        weeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekArrangement"
+        message:
+          type: string
+      required:
+        - weeks
+        - message
