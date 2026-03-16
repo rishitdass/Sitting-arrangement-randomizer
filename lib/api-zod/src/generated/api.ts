@@ -25,8 +25,10 @@ export const ListPeopleResponse = zod.object({
       role: zod.enum(["student", "teacher", "non_teaching_staff"]),
       studentGroup: zod
         .enum([
-          "junior_mag",
-          "senior_mag",
+          "grade_5",
+          "grade_6",
+          "grade_7",
+          "grade_8",
           "grade_9",
           "grade_10",
           "grade_11",
@@ -45,8 +47,10 @@ export const CreatePersonBody = zod.object({
   role: zod.enum(["student", "teacher", "non_teaching_staff"]),
   studentGroup: zod
     .enum([
-      "junior_mag",
-      "senior_mag",
+      "grade_5",
+      "grade_6",
+      "grade_7",
+      "grade_8",
       "grade_9",
       "grade_10",
       "grade_11",
@@ -65,8 +69,10 @@ export const BulkCreatePeopleBody = zod.object({
       role: zod.enum(["student", "teacher", "non_teaching_staff"]),
       studentGroup: zod
         .enum([
-          "junior_mag",
-          "senior_mag",
+          "grade_5",
+          "grade_6",
+          "grade_7",
+          "grade_8",
           "grade_9",
           "grade_10",
           "grade_11",
@@ -235,8 +241,10 @@ export const GenerateArrangementsResponse = zod.object({
               role: zod.enum(["student", "teacher", "non_teaching_staff"]),
               studentGroup: zod
                 .enum([
-                  "junior_mag",
-                  "senior_mag",
+                  "grade_5",
+                  "grade_6",
+                  "grade_7",
+                  "grade_8",
                   "grade_9",
                   "grade_10",
                   "grade_11",

@@ -9,8 +9,10 @@
 export type StudentGroup = (typeof StudentGroup)[keyof typeof StudentGroup];
 
 export const StudentGroup = {
-  junior_mag: "junior_mag",
-  senior_mag: "senior_mag",
+  grade_5: "grade_5",
+  grade_6: "grade_6",
+  grade_7: "grade_7",
+  grade_8: "grade_8",
   grade_9: "grade_9",
   grade_10: "grade_10",
   grade_11: "grade_11",

@@ -30,7 +30,7 @@ export interface WeekResult {
 }
 
 // grade_10, grade_11, grade_12 are seniors — they can serve as table authorities
-const SENIOR_GROUPS = new Set(["senior_mag", "grade_10", "grade_11", "grade_12"]);
+const SENIOR_GROUPS = new Set(["grade_10", "grade_11", "grade_12"]);
 
 function isSenior(p: PersonData): boolean {
   return !!p.studentGroup && SENIOR_GROUPS.has(p.studentGroup);
@@ -203,8 +203,10 @@ function forcedPlace(
 
 // Canonical segment ordering for zone rotation
 const ZONE_SEGMENTS = [
-  "junior_mag",
-  "senior_mag",
+  "grade_5",
+  "grade_6",
+  "grade_7",
+  "grade_8",
   "grade_9",
   "grade_10",
   "grade_11",

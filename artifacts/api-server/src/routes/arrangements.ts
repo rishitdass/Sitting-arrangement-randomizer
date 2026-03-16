@@ -74,12 +74,14 @@ function formatRole(role: string): string {
 function formatGroup(g?: string | null): string {
   if (!g) return "";
   const map: Record<string, string> = {
-    junior_mag: "Junior Mag",
-    senior_mag: "Senior Mag",
-    grade_9: "Grade 9",
-    grade_10: "Grade 10",
-    grade_11: "Grade 11",
-    grade_12: "Grade 12",
+    grade_5: "Class 5",
+    grade_6: "Class 6",
+    grade_7: "Class 7",
+    grade_8: "Class 8",
+    grade_9: "Class 9",
+    grade_10: "Class 10",
+    grade_11: "Class 11",
+    grade_12: "Class 12",
   };
   return map[g] ?? g;
 }

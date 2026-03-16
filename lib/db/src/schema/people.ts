@@ -3,7 +3,10 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const personRoleEnum = pgEnum("person_role", ["student", "teacher", "non_teaching_staff"]);
-export const studentGroupEnum = pgEnum("student_group", ["junior_mag", "senior_mag", "grade_9", "grade_10", "grade_11", "grade_12"]);
+export const studentGroupEnum = pgEnum("student_group", [
+  "grade_5", "grade_6", "grade_7", "grade_8",
+  "grade_9", "grade_10", "grade_11", "grade_12",
+]);
 
 export const peopleTable = pgTable("people", {
   id: serial("id").primaryKey(),

@@ -16,40 +16,30 @@ export function formatRole(role: PersonRole): string {
 export function formatStudentGroup(group: StudentGroup | null | undefined): string {
   if (!group) return "-";
   switch (group) {
-    case StudentGroup.junior_mag:
-      return "Junior Mag";
-    case StudentGroup.senior_mag:
-      return "Senior Mag";
-    case StudentGroup.grade_9:
-      return "Grade 9";
-    case StudentGroup.grade_10:
-      return "Grade 10";
-    case StudentGroup.grade_11:
-      return "Grade 11";
-    case StudentGroup.grade_12:
-      return "Grade 12";
-    default:
-      return group;
+    case StudentGroup.grade_5:  return "Class 5";
+    case StudentGroup.grade_6:  return "Class 6";
+    case StudentGroup.grade_7:  return "Class 7";
+    case StudentGroup.grade_8:  return "Class 8";
+    case StudentGroup.grade_9:  return "Class 9";
+    case StudentGroup.grade_10: return "Class 10";
+    case StudentGroup.grade_11: return "Class 11";
+    case StudentGroup.grade_12: return "Class 12";
+    default: return group;
   }
 }
 
 export function getGroupColor(group: StudentGroup | null | undefined): string {
   if (!group) return "bg-gray-100 text-gray-700 border-gray-200";
   switch (group) {
-    case StudentGroup.junior_mag:
-      return "bg-green-100 text-green-800 border-green-200";
-    case StudentGroup.senior_mag:
-      return "bg-emerald-100 text-emerald-800 border-emerald-200";
-    case StudentGroup.grade_9:
-      return "bg-blue-100 text-blue-800 border-blue-200";
-    case StudentGroup.grade_10:
-      return "bg-indigo-100 text-indigo-800 border-indigo-200";
-    case StudentGroup.grade_11:
-      return "bg-violet-100 text-violet-800 border-violet-200";
-    case StudentGroup.grade_12:
-      return "bg-purple-100 text-purple-800 border-purple-200";
-    default:
-      return "bg-gray-100 text-gray-700 border-gray-200";
+    case StudentGroup.grade_5:  return "bg-sky-100 text-sky-800 border-sky-200";
+    case StudentGroup.grade_6:  return "bg-cyan-100 text-cyan-800 border-cyan-200";
+    case StudentGroup.grade_7:  return "bg-teal-100 text-teal-800 border-teal-200";
+    case StudentGroup.grade_8:  return "bg-green-100 text-green-800 border-green-200";
+    case StudentGroup.grade_9:  return "bg-blue-100 text-blue-800 border-blue-200";
+    case StudentGroup.grade_10: return "bg-indigo-100 text-indigo-800 border-indigo-200";
+    case StudentGroup.grade_11: return "bg-violet-100 text-violet-800 border-violet-200";
+    case StudentGroup.grade_12: return "bg-purple-100 text-purple-800 border-purple-200";
+    default: return "bg-gray-100 text-gray-700 border-gray-200";
   }
 }
 
