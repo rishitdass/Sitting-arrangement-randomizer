@@ -1,7 +1,8 @@
 import { Link, useRoute } from "wouter";
-import { Users, Settings, Users2, Calendar, FileSpreadsheet, Menu, X, Utensils } from "lucide-react";
+import { Users, Settings, Users2, Calendar, FileSpreadsheet, Menu, Utensils, ScrollText } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getLogs } from "@/lib/logger";
 
 const navItems = [
   { path: "/", label: "People", icon: Users },
@@ -9,10 +10,13 @@ const navItems = [
   { path: "/config", label: "Configuration", icon: Settings },
   { path: "/arrangements", label: "Arrangements", icon: Calendar },
   { path: "/guide", label: "Excel Guide", icon: FileSpreadsheet },
+  { path: "/logs", label: "Logs", icon: ScrollText },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const errorCount = getLogs().filter(l => l.level === "error").length;
 
   return (
     <div className="min-h-screen bg-background flex w-full overflow-hidden">
@@ -49,7 +53,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const [isActive] = useRoute(item.path);
             const Icon = item.icon;
-            
+            const isLogs = item.path === "/logs";
+
             return (
               <Link key={item.path} href={item.path} onClick={() => setSidebarOpen(false)}>
                 <div
@@ -60,13 +65,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   }`}
                 >
                   <Icon className={`w-5 h-5 ${isActive ? "text-sidebar-primary" : ""}`} />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {isLogs && errorCount > 0 && (
+                    <span className="ml-auto bg-rose-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {errorCount > 9 ? "9+" : errorCount}
+                    </span>
+                  )}
                 </div>
               </Link>
             );
           })}
         </nav>
-        
+
         <div className="p-6">
           <div className="bg-sidebar-accent/30 rounded-2xl p-4 border border-sidebar-border">
             <p className="text-xs text-sidebar-foreground/60 leading-relaxed">

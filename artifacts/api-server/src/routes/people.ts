@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { peopleTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { CreatePersonBody, BulkCreatePeopleBody } from "@workspace/api-zod";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
@@ -66,6 +67,17 @@ router.post("/bulk", async (req, res) => {
   }
 
   res.json({ created, skipped, errors });
+});
+
+router.delete("/bulk", async (req, res) => {
+  const parsed = z.object({ ids: z.array(z.number()).min(1) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "validation_error", message: "ids must be a non-empty array of numbers" });
+    return;
+  }
+  const { ids } = parsed.data;
+  await db.delete(peopleTable).where(inArray(peopleTable.id, ids));
+  res.status(204).send();
 });
 
 router.delete("/:id", async (req, res) => {

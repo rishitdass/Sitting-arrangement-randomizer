@@ -7,6 +7,7 @@ export const configTable = pgTable("config", {
   tableCount: integer("table_count").notNull().default(45),
   maxTeachersPerTable: integer("max_teachers_per_table").notNull().default(1),
   seatsPerTable: integer("seats_per_table").notNull().default(4),
+  zoneCount: integer("zone_count").notNull().default(1),
 });
 
 export const insertConfigSchema = createInsertSchema(configTable).omit({ id: true });

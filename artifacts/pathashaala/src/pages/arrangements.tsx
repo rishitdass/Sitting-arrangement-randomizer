@@ -1,3 +1,4 @@
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { useGenerateArrangements, useDownloadArrangement, useDownloadAllArrangements } from "@workspace/api-client-react";
 import { Calendar, Download, RefreshCw, Wand2, FileSpreadsheet } from "lucide-react";

@@ -2,9 +2,16 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { configTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { UpdateConfigBody } from "@workspace/api-zod";
+import { z } from "zod";
 
 const router: IRouter = Router();
+
+const UpdateConfigBody = z.object({
+  tableCount: z.number().min(1).optional(),
+  maxTeachersPerTable: z.number().min(1).optional(),
+  seatsPerTable: z.number().min(2).optional(),
+  zoneCount: z.number().min(1).max(20).optional(),
+});
 
 async function ensureConfig() {
   const rows = await db.select().from(configTable).limit(1);
@@ -13,6 +20,7 @@ async function ensureConfig() {
       tableCount: 45,
       maxTeachersPerTable: 1,
       seatsPerTable: 4,
+      zoneCount: 1,
     }).returning();
     return cfg;
   }

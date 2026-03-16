@@ -23,8 +23,9 @@ router.post("/generate", async (_req, res) => {
         tableCount: configRows[0].tableCount,
         seatsPerTable: configRows[0].seatsPerTable,
         maxTeachersPerTable: configRows[0].maxTeachersPerTable,
+        zoneCount: configRows[0].zoneCount ?? 1,
       }
-    : { tableCount: 45, seatsPerTable: 4, maxTeachersPerTable: 1 };
+    : { tableCount: 45, seatsPerTable: 4, maxTeachersPerTable: 1, zoneCount: 1 };
 
   const allGroups = await db.select().from(friendshipGroupsTable);
   const groupsData: GroupData[] = [];

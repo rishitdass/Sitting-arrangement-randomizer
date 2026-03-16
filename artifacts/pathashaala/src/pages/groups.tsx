@@ -233,6 +233,7 @@ export default function Groups() {
                         >
                           <Checkbox
                             checked={selectedIds.includes(person.id)}
+                            onClick={e => e.stopPropagation()}
                             onCheckedChange={() => togglePerson(person.id)}
                           />
                           <div className="flex-1">

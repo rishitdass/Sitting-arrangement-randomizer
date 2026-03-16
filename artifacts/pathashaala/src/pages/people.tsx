@@ -1,17 +1,33 @@
 import { useState, useRef } from "react";
 import { useListPeople, useCreatePerson, useDeletePerson, useBulkCreatePeople, PersonRole, StudentGroup, getListPeopleQueryKey } from "@workspace/api-client-react";
 import { formatRole, formatStudentGroup, getGroupColor, getRoleColor } from "@/lib/formatters";
-import { Plus, Upload, Trash2, Search, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Plus, Upload, Trash2, Search, FileSpreadsheet, Loader2, CheckSquare } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { logApiError } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+async function bulkDeletePeople(ids: number[]): Promise<void> {
+  const res = await fetch(`${BASE}/api/people/bulk`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message ?? `HTTP ${res.status}`);
+  }
+}
 
 export default function People() {
   const { data: peopleData, isLoading } = useListPeople();
@@ -24,7 +40,9 @@ export default function People() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
   // Add Person State
   const [name, setName] = useState("");
   const [role, setRole] = useState<PersonRole>(PersonRole.student);
@@ -37,15 +55,43 @@ export default function People() {
   const people = peopleData?.people || [];
   const filteredPeople = people.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
+  const allFilteredSelected = filteredPeople.length > 0 && filteredPeople.every(p => selectedIds.has(p.id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredPeople.forEach(p => next.delete(p.id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredPeople.forEach(p => next.add(p.id));
+        return next;
+      });
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleCreate = () => {
     if (!name.trim()) return;
     createPerson.mutate(
-      { 
-        data: { 
-          name, 
-          role, 
-          studentGroup: role === PersonRole.student && studentGroup ? (studentGroup as StudentGroup) : null 
-        } 
+      {
+        data: {
+          name,
+          role,
+          studentGroup: role === PersonRole.student && studentGroup ? (studentGroup as StudentGroup) : null
+        }
       },
       {
         onSuccess: () => {
@@ -55,7 +101,8 @@ export default function People() {
           toast({ title: "Person added successfully!" });
         },
         onError: (err) => {
-          toast({ title: "Failed to add person", description: err.message, variant: "destructive" });
+          logApiError("Add person", err);
+          toast({ title: "Failed to add person", description: (err as any).message, variant: "destructive" });
         }
       }
     );
@@ -68,10 +115,33 @@ export default function People() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
+          setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
           toast({ title: "Person removed." });
+        },
+        onError: (err) => {
+          logApiError("Delete person", err);
         }
       }
     );
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected ${ids.length === 1 ? "person" : "people"}?`)) return;
+
+    setIsBulkDeleting(true);
+    try {
+      await bulkDeletePeople(ids);
+      queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
+      setSelectedIds(new Set());
+      toast({ title: `Deleted ${ids.length} ${ids.length === 1 ? "person" : "people"}.` });
+    } catch (err) {
+      logApiError("Bulk delete people", err);
+      toast({ title: "Bulk delete failed", description: (err as any).message, variant: "destructive" });
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,13 +159,11 @@ export default function People() {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Expected format: Name | Role | StudentGroup
+
         const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
+
         const mappedPeople = json
           .filter((row, idx) => {
-            // skip completely empty rows or header rows if they contain "Name"
             if (!row[0]) return false;
             if (idx === 0 && row[0].toString().toLowerCase().includes('name')) return false;
             return true;
@@ -103,7 +171,7 @@ export default function People() {
           .map(row => {
             const roleStr = (row[1] || '').toString().toLowerCase().trim();
             const groupStr = (row[2] || '').toString().toLowerCase().trim();
-            
+
             let resolvedRole = PersonRole.student;
             if (roleStr.includes('teacher') && !roleStr.includes('non')) resolvedRole = PersonRole.teacher;
             else if (roleStr.includes('non') || roleStr.includes('staff')) resolvedRole = PersonRole.non_teaching_staff;
@@ -133,13 +201,14 @@ export default function People() {
               setIsUploadOpen(false);
               setUploadFile(null);
               if (fileInputRef.current) fileInputRef.current.value = "";
-              toast({ 
-                title: "Upload Complete", 
+              toast({
+                title: "Upload Complete",
                 description: `Created: ${res.created}, Skipped: ${res.skipped}. ${res.errors.length ? 'Some errors occurred.' : ''}`
               });
             },
             onError: (err) => {
-              toast({ title: "Bulk upload failed", description: err.message, variant: "destructive" });
+              logApiError("Bulk upload people", err);
+              toast({ title: "Bulk upload failed", description: (err as any).message, variant: "destructive" });
             }
           }
         );
@@ -156,7 +225,7 @@ export default function People() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-      
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">People Management</h1>
@@ -181,10 +250,10 @@ export default function People() {
                   <FileSpreadsheet className="w-10 h-10 text-muted-foreground mb-3" />
                   <p className="text-sm text-foreground font-medium mb-1">Select an Excel file (.xlsx)</p>
                   <p className="text-xs text-muted-foreground mb-4">Columns: Name, Role, StudentGroup</p>
-                  <input 
-                    type="file" 
-                    accept=".xlsx, .xls, .csv" 
-                    className="hidden" 
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    className="hidden"
                     ref={fileInputRef}
                     onChange={handleFileUpload}
                   />
@@ -196,8 +265,8 @@ export default function People() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsUploadOpen(false)}>Cancel</Button>
-                <Button 
-                  onClick={processUpload} 
+                <Button
+                  onClick={processUpload}
                   disabled={!uploadFile || bulkCreate.isPending}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
@@ -222,10 +291,10 @@ export default function People() {
               <div className="py-4 space-y-4">
                 <div className="space-y-2">
                   <Label>Full Name</Label>
-                  <Input 
-                    placeholder="Enter name..." 
-                    value={name} 
-                    onChange={e => setName(e.target.value)} 
+                  <Input
+                    placeholder="Enter name..."
+                    value={name}
+                    onChange={e => setName(e.target.value)}
                     className="rounded-xl border-border focus:border-primary focus:ring-primary/20"
                   />
                 </div>
@@ -242,7 +311,7 @@ export default function People() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 {role === PersonRole.student && (
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                     <Label>Student Group</Label>
@@ -264,8 +333,8 @@ export default function People() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                <Button 
-                  onClick={handleCreate} 
+                <Button
+                  onClick={handleCreate}
                   disabled={!name || createPerson.isPending || (role === PersonRole.student && !studentGroup)}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
@@ -297,32 +366,54 @@ export default function People() {
       </div>
 
       <div className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-border flex items-center bg-muted/20">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b border-border flex items-center gap-3 bg-muted/20 flex-wrap">
+          <div className="relative flex-1 min-w-[180px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search people..." 
+            <Input
+              placeholder="Search people..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 rounded-xl border-border bg-white"
             />
           </div>
+          {someSelected && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-sm text-muted-foreground font-medium">{selectedIds.size} selected</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting}
+                className="gap-2 rounded-xl"
+              >
+                {isBulkDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete Selected
+              </Button>
+            </div>
+          )}
         </div>
-        
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow className="border-border">
+                <TableHead className="w-12 py-4 pl-4">
+                  <Checkbox
+                    checked={allFilteredSelected}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead className="font-semibold text-foreground py-4">Name</TableHead>
                 <TableHead className="font-semibold text-foreground py-4">Role</TableHead>
                 <TableHead className="font-semibold text-foreground py-4">Group</TableHead>
-                <TableHead className="text-right font-semibold text-foreground py-4">Actions</TableHead>
+                <TableHead className="text-right font-semibold text-foreground py-4 pr-4">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="w-5 h-5 animate-spin" />
                       Loading people...
@@ -331,13 +422,24 @@ export default function People() {
                 </TableRow>
               ) : filteredPeople.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                     No people found. Add some manually or bulk upload.
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredPeople.map((person) => (
-                  <TableRow key={person.id} className="border-border group transition-colors">
+                  <TableRow
+                    key={person.id}
+                    className={`border-border transition-colors cursor-pointer ${selectedIds.has(person.id) ? "bg-primary/5" : "group"}`}
+                    onClick={() => toggleSelect(person.id)}
+                  >
+                    <TableCell className="pl-4 py-4" onClick={e => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(person.id)}
+                        onCheckedChange={() => toggleSelect(person.id)}
+                        aria-label={`Select ${person.name}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium text-foreground py-4">{person.name}</TableCell>
                     <TableCell className="py-4">
                       <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${getRoleColor(person.role)}`}>
@@ -353,10 +455,10 @@ export default function People() {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right py-4">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                    <TableCell className="text-right py-4 pr-4" onClick={e => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleDelete(person.id)}
                         className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         disabled={deletePerson.isPending}
@@ -370,6 +472,16 @@ export default function People() {
             </TableBody>
           </Table>
         </div>
+
+        {someSelected && (
+          <div className="p-3 border-t border-border bg-primary/5 flex items-center gap-3">
+            <CheckSquare className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium text-primary">{selectedIds.size} of {people.length} people selected</span>
+            <button className="text-xs text-muted-foreground underline ml-auto" onClick={() => setSelectedIds(new Set())}>
+              Clear selection
+            </button>
+          </div>
+        )}
       </div>
     </motion.div>
   );
