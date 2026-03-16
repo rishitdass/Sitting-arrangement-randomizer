@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { logApiError } from "@/lib/logger";
+import { logApiError, addLog } from "@/lib/logger";
 import * as XLSX from "xlsx";
 import { motion } from "framer-motion";
 
@@ -30,7 +30,10 @@ async function bulkDeletePeople(ids: number[]): Promise<void> {
 }
 
 export default function People() {
-  const { data: peopleData, isLoading } = useListPeople();
+  const { data: peopleData, isLoading } = useListPeople({
+    onSuccess: (data) => addLog("debug", "Loaded people", { detail: data }),
+    onError: (err) => logApiError("List people", err),
+  });
   const createPerson = useCreatePerson();
   const deletePerson = useDeletePerson();
   const bulkCreate = useBulkCreatePeople();
@@ -60,12 +63,14 @@ export default function People() {
 
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
+      addLog("debug", "Deselecting all filtered people");
       setSelectedIds(prev => {
         const next = new Set(prev);
         filteredPeople.forEach(p => next.delete(p.id));
         return next;
       });
     } else {
+      addLog("debug", "Selecting all filtered people");
       setSelectedIds(prev => {
         const next = new Set(prev);
         filteredPeople.forEach(p => next.add(p.id));
@@ -75,6 +80,7 @@ export default function People() {
   };
 
   const toggleSelect = (id: number) => {
+    addLog("debug", `Toggling selection for person ${id}`);
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -85,16 +91,17 @@ export default function People() {
 
   const handleCreate = () => {
     if (!name.trim()) return;
+    const payload = {
+      name,
+      role,
+      studentGroup: role === PersonRole.student && studentGroup ? (studentGroup as StudentGroup) : null
+    };
+    addLog("info", "Attempting to create person", { detail: payload });
     createPerson.mutate(
-      {
-        data: {
-          name,
-          role,
-          studentGroup: role === PersonRole.student && studentGroup ? (studentGroup as StudentGroup) : null
-        }
-      },
+      { data: payload },
       {
         onSuccess: () => {
+          addLog("info", "Person created successfully", { detail: payload });
           queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
           setIsAddOpen(false);
           setName("");
@@ -110,10 +117,12 @@ export default function People() {
 
   const handleDelete = (id: number) => {
     if (!confirm("Are you sure you want to remove this person?")) return;
+    addLog("info", `Attempting to delete person ${id}`);
     deletePerson.mutate(
       { id },
       {
         onSuccess: () => {
+          addLog("info", `Person ${id} deleted`);
           queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
           setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
           toast({ title: "Person removed." });
@@ -130,9 +139,11 @@ export default function People() {
     if (ids.length === 0) return;
     if (!confirm(`Delete ${ids.length} selected ${ids.length === 1 ? "person" : "people"}?`)) return;
 
+    addLog("info", "Attempting bulk delete", { detail: { count: ids.length, ids } });
     setIsBulkDeleting(true);
     try {
       await bulkDeletePeople(ids);
+      addLog("info", "Bulk delete successful");
       queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
       setSelectedIds(new Set());
       toast({ title: `Deleted ${ids.length} ${ids.length === 1 ? "person" : "people"}.` });
@@ -146,12 +157,14 @@ export default function People() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
+      addLog("debug", "File selected for upload", { detail: { name: e.target.files[0].name } });
       setUploadFile(e.target.files[0]);
     }
   };
 
   const processUpload = async () => {
     if (!uploadFile) return;
+    addLog("info", "Processing file upload");
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
@@ -161,11 +174,12 @@ export default function People() {
         const worksheet = workbook.Sheets[firstSheetName];
 
         const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        addLog("debug", "Excel data parsed", { detail: { rowCount: json.length } });
 
         const mappedPeople = json
           .filter((row, idx) => {
             if (!row[0]) return false;
-            if (idx === 0 && row[0].toString().toLowerCase().includes('name')) return false;
+            if (idx === 0 && String(row[0]).toLowerCase().includes('name')) return false;
             return true;
           })
           .map(row => {
@@ -178,8 +192,10 @@ export default function People() {
 
             let resolvedGroup: StudentGroup | null = null;
             if (resolvedRole === PersonRole.student) {
-              if (groupStr.includes('junior')) resolvedGroup = StudentGroup.junior_mag;
-              else if (groupStr.includes('senior')) resolvedGroup = StudentGroup.senior_mag;
+              if (groupStr.includes('5')) resolvedGroup = StudentGroup.grade_5;
+              else if (groupStr.includes('6')) resolvedGroup = StudentGroup.grade_6;
+              else if (groupStr.includes('7')) resolvedGroup = StudentGroup.grade_7;
+              else if (groupStr.includes('8')) resolvedGroup = StudentGroup.grade_8;
               else if (groupStr.includes('9')) resolvedGroup = StudentGroup.grade_9;
               else if (groupStr.includes('10')) resolvedGroup = StudentGroup.grade_10;
               else if (groupStr.includes('11')) resolvedGroup = StudentGroup.grade_11;
@@ -192,11 +208,14 @@ export default function People() {
               studentGroup: resolvedGroup
             };
           });
+        
+        addLog("info", `Mapped ${mappedPeople.length} people from file`, { detail: mappedPeople });
 
         bulkCreate.mutate(
           { data: { people: mappedPeople } },
           {
             onSuccess: (res) => {
+              addLog("info", "Bulk upload successful", { detail: res });
               queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
               setIsUploadOpen(false);
               setUploadFile(null);
@@ -213,6 +232,7 @@ export default function People() {
           }
         );
       } catch (err) {
+        logApiError("Excel parsing", err);
         toast({ title: "Error parsing Excel", description: "Please ensure the format is correct.", variant: "destructive" });
       }
     };
@@ -320,8 +340,10 @@ export default function People() {
                         <SelectValue placeholder="Select group" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={StudentGroup.junior_mag}>Junior Mag</SelectItem>
-                        <SelectItem value={StudentGroup.senior_mag}>Senior Mag</SelectItem>
+                        <SelectItem value={StudentGroup.grade_5}>Grade 5</SelectItem>
+                        <SelectItem value={StudentGroup.grade_6}>Grade 6</SelectItem>
+                        <SelectItem value={StudentGroup.grade_7}>Grade 7</SelectItem>
+                        <SelectItem value={StudentGroup.grade_8}>Grade 8</SelectItem>
                         <SelectItem value={StudentGroup.grade_9}>Grade 9</SelectItem>
                         <SelectItem value={StudentGroup.grade_10}>Grade 10</SelectItem>
                         <SelectItem value={StudentGroup.grade_11}>Grade 11</SelectItem>
