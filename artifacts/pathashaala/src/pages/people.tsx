@@ -178,8 +178,9 @@ export default function People() {
 
             let resolvedGroup: StudentGroup | null = null;
             if (resolvedRole === PersonRole.student) {
-              if (groupStr.includes('junior')) resolvedGroup = StudentGroup.junior_mag;
-              else if (groupStr.includes('senior')) resolvedGroup = StudentGroup.senior_mag;
+              if (groupStr.includes('6')) resolvedGroup = StudentGroup.grade_6;
+              else if (groupStr.includes('7')) resolvedGroup = StudentGroup.grade_7;
+              else if (groupStr.includes('8')) resolvedGroup = StudentGroup.grade_8;
               else if (groupStr.includes('9')) resolvedGroup = StudentGroup.grade_9;
               else if (groupStr.includes('10')) resolvedGroup = StudentGroup.grade_10;
               else if (groupStr.includes('11')) resolvedGroup = StudentGroup.grade_11;
@@ -320,8 +321,9 @@ export default function People() {
                         <SelectValue placeholder="Select group" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={StudentGroup.junior_mag}>Junior Mag</SelectItem>
-                        <SelectItem value={StudentGroup.senior_mag}>Senior Mag</SelectItem>
+                        <SelectItem value={StudentGroup.grade_6}>Grade 6</SelectItem>
+                        <SelectItem value={StudentGroup.grade_7}>Grade 7</SelectItem>
+                        <SelectItem value={StudentGroup.grade_8}>Grade 8</SelectItem>
                         <SelectItem value={StudentGroup.grade_9}>Grade 9</SelectItem>
                         <SelectItem value={StudentGroup.grade_10}>Grade 10</SelectItem>
                         <SelectItem value={StudentGroup.grade_11}>Grade 11</SelectItem>
